@@ -1,0 +1,117 @@
+Bootstrap: docker
+From: ollama/ollama:{{ OLLAMA_TAG }}
+
+%arguments
+    OLLAMA_TAG=latest
+    OLLAMA_LIBRARY_URL=https://ollama.com/library
+    # Set your scratch base directory here. Users can change this to match their system.
+    SCRATCH_BASE=/scratch/groups/fmcnich/nrapstin
+
+%setup
+    # Run write-apptainer-labels.sh only if it exists
+    if [ -f ./.build-scripts/write-apptainer-labels.sh ]; then
+        [ -n "${APPTAINER_ROOTFS:-}" ] && ./.build-scripts/write-apptainer-labels.sh >"${APPTAINER_ROOTFS}/.build_labels"
+    else
+        echo "Warning: ./.build-scripts/write-apptainer-labels.sh not found. Skipping label insertion."
+    fi
+
+%post
+    if ! [ -f /etc/debian_version ]; then
+        echo "This container is only fully supported on Debian-based systems. Some commands may not work." >&2
+    else
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -yq && \
+            apt-get install -y curl && \
+            apt-get clean && \
+            rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+    fi
+
+%test
+    ollama --help
+
+%runscript
+    set -o noglob -o errexit
+    if [ $# -eq 0 ] || [ -z "${1:-}" ]; then
+        echo "Usage: $0 ollama [args]" >&2
+        exit 1
+    fi
+    OLLAMA_LIBRARY_URL="${OLLAMA_LIBRARY_URL:-{{ OLLAMA_LIBRARY_URL }}}"
+    case "${1:-}" in
+        available-models)
+            shift
+            command -v curl >/dev/null || { echo "curl not found. Exiting." >&2; exit 1; }
+            curl -sL "${OLLAMA_LIBRARY_URL}" | grep -oP 'href="/library/\K[^"]+' || { echo "No models found at ${OLLAMA_LIBRARY_URL}" >&2; exit 2; }
+            exit 0
+            ;;
+        available-tags)
+            shift
+            command -v curl >/dev/null || { echo "curl not found. Exiting." >&2; exit 1; }
+            curl -sL "${OLLAMA_LIBRARY_URL}/$1/tags" | grep -o "$1:[^\" ]*q[^\" ]*" | grep -E -v 'text|base|fp|q[45]_[01]' || { echo "No model tags found at ${OLLAMA_LIBRARY_URL}/$1/tags" >&2; exit 2; }
+            exit 0
+            ;;
+        *)     ;;
+    esac
+    # Run the ollama command with the remaining arguments:
+    "$@"
+
+%startscript
+    set -o errexit -o noglob
+
+    # Ensure SCRATCH_BASE is set; if not, assign a default value.
+    if [ -z "${SCRATCH_BASE}" ]; then
+        SCRATCH_BASE="/scratch/groups/fmcnich/nrapstin"
+    fi
+
+    # Ensure the base scratch directory exists (create if necessary)
+    if ! mkdir -p "${SCRATCH_BASE}"; then
+        echo "Failed to create scratch base directory ${SCRATCH_BASE}. Exiting." >&2
+        exit 1
+    fi
+
+    # Use the user-defined scratch space for Ollama models.
+    if findmnt -M "${SCRATCH_BASE}" -O rw -f 2>/dev/null; then
+        OLLAMA_MODELS="${OLLAMA_MODELS:-${SCRATCH_BASE}/ollama/models}"
+    else
+        OLLAMA_MODELS="${OLLAMA_MODELS:-/tmp/ollama/models}"
+    fi
+    OLLAMA_MODELS_REAL="$(realpath "${OLLAMA_MODELS}")"
+    if [ -f "${OLLAMA_MODELS}" ]; then
+        echo "\"${OLLAMA_MODELS}\" is a file. Exiting." >&2
+        exit 1
+    fi
+    if ! mkdir -p "${OLLAMA_MODELS}" 2>/dev/null; then
+        echo "Failed to create the directory \"${OLLAMA_MODELS}\". Exiting." >&2
+        exit 1
+    fi
+    if ! [ -r "${OLLAMA_MODELS}" ]; then
+        echo "The directory \"${OLLAMA_MODELS}\" is not readable. Exiting." >&2
+        exit 1
+    fi
+    if ! [ -w "${OLLAMA_MODELS}" ]; then
+        echo "The directory \"${OLLAMA_MODELS}\" is not writable. Exiting." >&2
+        exit 1
+    fi
+    export OLLAMA_MODELS
+
+    # Set up OLLAMA_HOST
+    if [ -z "${OLLAMA_PORT:-}" ]; then
+        echo "OLLAMA_PORT not set. Finding a random port to use" >&2
+        get_random_port() {
+            bash -c 'set -e; read LOWERPORT UPPERPORT < /proc/sys/net/ipv4/ip_local_port_range; PORTRANGE=$(( UPPERPORT - LOWERPORT )); while :; do PORT=$(( LOWERPORT + ( RANDOM % PORTRANGE) )); (echo -n > /dev/tcp/127.0.0/${PORT}) &>/dev/null || echo "${PORT}" && exit 0; done; exit 1'
+        }
+        OLLAMA_PORT="$(get_random_port)" || {
+            echo "Failed to get random port. Exiting." >&2
+            exit 1
+        }
+    fi
+    export OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1${OLLAMA_PORT:+:${OLLAMA_PORT}}}"
+    ollama serve || {
+        echo "Failed to start ollama. Exiting." >&2
+        exit 1
+    }
+    OLLAMA_PID=$!
+    trap 'kill -TERM $OLLAMA_PID' TERM INT
+
+%help
+    This is a simple container for running Ollama. For more information, visit https://ollama.ai.
+
