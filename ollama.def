@@ -5,7 +5,7 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
     OLLAMA_TAG=latest
     OLLAMA_LIBRARY_URL=https://ollama.com/library
     # Set your scratch base directory here. Users can change this to match their system.
-    SCRATCH_BASE=/scratch/groups/fmcnich/nrapstin
+    SCRATCH_BASE=<your-scratch-dir-here>
 
 %setup
     # Run write-apptainer-labels.sh only if it exists
@@ -56,11 +56,6 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
 
 %startscript
     set -o errexit -o noglob
-
-    # Ensure SCRATCH_BASE is set; if not, assign a default value.
-    if [ -z "${SCRATCH_BASE}" ]; then
-        SCRATCH_BASE="/scratch/groups/fmcnich/nrapstin"
-    fi
 
     # Ensure the base scratch directory exists (create if necessary)
     if ! mkdir -p "${SCRATCH_BASE}"; then
