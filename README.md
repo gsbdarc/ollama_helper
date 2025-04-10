@@ -19,7 +19,7 @@ apptainer build ollama.sif ollama.def
 
 To launch the server, run:
 ```
-export OLLAMA_MODELS=/scratch/groups/fmcnich/nrapstin/ollama_data/models
+export OLLAMA_MODELS=/<your-scratch-space-dir>/ollama_data/models
 mkdir -p "${OLLAMA_MODELS}"
 apptainer instance start --nv --writable-tmpfs --bind /scratch ollama.sif ollama-$USER
 ```
