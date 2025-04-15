@@ -134,10 +134,9 @@ apptainer instance stop ollama-$USER
 
 ### Transfer Built Container to Marlowe and Yens
 ```
-scp ollama.sif nrapstin@login.marlowe.stanford.edu:/projects/m000106/nrapstin/llm-hub_how_to
-scp ollama.sif nrapstin@yen.stanford.edu:/zfs/projects/darc/nrapstin_ollama
+scp ollama.sif $USER@login.marlowe.stanford.edu:<your-project-space-on-Marlowe>
+scp ollama.sif $USER@yen.stanford.edu:<your-project-space-on-yens>
 ```
-
 
 ## Run Ollama on Marlowe
 
@@ -169,7 +168,7 @@ Test from a login node:
 ```
 curl http://<hostname>:<port>
 ```
-where `hostname` is the GPU node that is running the server.
+where `hostname` is the GPU node that is running the server and `port` is the port number where server is listening.
 
 Run the script from the login node:
 ```
