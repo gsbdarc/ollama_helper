@@ -4,16 +4,16 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
 %arguments
     OLLAMA_TAG=latest
     OLLAMA_LIBRARY_URL=https://ollama.com/library
-    # Set your scratch base default here.
-    # This default will be used if no runtime override is provided.
+    # Set your default scratch base here.
+    # This value will be used at build time if no runtime override is provided.
     SCRATCH_BASE=<your-scratch-dir-here>
 
 %environment
-    # Save the build-time default into a variable.
+    # Save the build-time default into DEFAULT_SCRATCH_BASE.
     export DEFAULT_SCRATCH_BASE="{{ SCRATCH_BASE }}"
 
 %setup
-    # Run write-apptainer-labels.sh only if it exists.
+    # Run write-apptainer-labels.sh if it exists.
     if [ -f ./.build-scripts/write-apptainer-labels.sh ]; then
         [ -n "${APPTAINER_ROOTFS:-}" ] && ./.build-scripts/write-apptainer-labels.sh >"${APPTAINER_ROOTFS}/.build_labels"
     else
@@ -21,7 +21,7 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
     fi
 
 %post
-    # Dummy usage of SCRATCH_BASE via template substitution to use the build arg.
+    # Dummy usage of SCRATCH_BASE via template substitution to mark it as used.
     echo "Build arg SCRATCH_BASE is set to {{ SCRATCH_BASE }}"
     if ! [ -f /etc/debian_version ]; then
         echo "This container is only fully supported on Debian-based systems. Some commands may not work." >&2
@@ -36,54 +36,46 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
 %test
     ollama --help
 
-%runscript
+%startscript
+    # This section is executed when an instance starts.
     set -o errexit -o noglob
 
-    # Allow a runtime override. If SCRATCH_BASE is not provided at runtime, use the default.
+    # Use the runtime override if provided; otherwise fall back to the build-time default.
     SCRATCH_BASE="${SCRATCH_BASE:-$DEFAULT_SCRATCH_BASE}"
-
-    # Validate that a proper scratch base has been supplied.
     if [ -z "${SCRATCH_BASE}" ] || [ "${SCRATCH_BASE}" = "<your-scratch-dir-here>" ]; then
-        echo "Error: SCRATCH_BASE is not set. Please supply a valid scratch directory path either via a build argument or by setting SCRATCH_BASE at runtime." >&2
+        echo "Error: SCRATCH_BASE is not set. Provide a valid scratch directory via a build argument or runtime override." >&2
         exit 1
     fi
 
-    # Ensure the base scratch directory exists (create it if necessary).
+    # Ensure that SCRATCH_BASE exists.
     if ! mkdir -p "${SCRATCH_BASE}"; then
         echo "Failed to create scratch base directory ${SCRATCH_BASE}. Exiting." >&2
         exit 1
     fi
 
-    # Use the user-defined scratch space for Ollama models.
+    # Use SCRATCH_BASE as the basis for Ollama models.
     if findmnt -M "${SCRATCH_BASE}" -O rw -f 2>/dev/null; then
         OLLAMA_MODELS="${OLLAMA_MODELS:-${SCRATCH_BASE}/ollama/models}"
     else
         OLLAMA_MODELS="${OLLAMA_MODELS:-/tmp/ollama/models}"
     fi
-    OLLAMA_MODELS_REAL="$(realpath "${OLLAMA_MODELS}")"
-    if [ -f "${OLLAMA_MODELS}" ]; then
-        echo "\"${OLLAMA_MODELS}\" is a file. Exiting." >&2
-        exit 1
-    fi
-    if ! mkdir -p "${OLLAMA_MODELS}" 2>/dev/null; then
-        echo "Failed to create the directory \"${OLLAMA_MODELS}\". Exiting." >&2
-        exit 1
-    fi
-    if ! [ -r "${OLLAMA_MODELS}" ]; then
-        echo "The directory \"${OLLAMA_MODELS}\" is not readable. Exiting." >&2
-        exit 1
-    fi
-    if ! [ -w "${OLLAMA_MODELS}" ]; then
-        echo "The directory \"${OLLAMA_MODELS}\" is not writable. Exiting." >&2
+    if ! mkdir -p "${OLLAMA_MODELS}"; then
+        echo "Failed to create directory \"${OLLAMA_MODELS}\". Exiting." >&2
         exit 1
     fi
     export OLLAMA_MODELS
 
-    # Set up OLLAMA_HOST. If OLLAMA_PORT is not provided, pick a random open port.
+    # Unconditionally override HOME to a writable directory under SCRATCH_BASE.
+    NEW_HOME="${SCRATCH_BASE}/home"
+    echo "Overriding HOME to ${NEW_HOME} for writable storage."
+    mkdir -p "${NEW_HOME}" || { echo "Failed to create writable home at ${NEW_HOME}. Exiting." >&2; exit 1; }
+    export HOME="${NEW_HOME}"
+
+    # Set up OLLAMA_PORT if not provided.
     if [ -z "${OLLAMA_PORT:-}" ]; then
         echo "OLLAMA_PORT not set. Finding a random port to use" >&2
         get_random_port() {
-            bash -c 'set -e; read LOWERPORT UPPERPORT < /proc/sys/net/ipv4/ip_local_port_range; PORTRANGE=$(( UPPERPORT - LOWERPORT )); while :; do PORT=$(( LOWERPORT + ( RANDOM % PORTRANGE) )); (echo -n > /dev/tcp/127.0.0/${PORT}) &>/dev/null || echo "${PORT}" && exit 0; done; exit 1'
+            bash -c 'set -e; read LOWERPORT UPPERPORT < /proc/sys/net/ipv4/ip_local_port_range; PORTRANGE=$(( UPPERPORT - LOWERPORT )); while :; do PORT=$(( LOWERPORT + ( RANDOM % PORTRANGE) )); (echo -n > /dev/tcp/127.0.0/${PORT}) &>/dev/null || { echo "${PORT}"; exit 0; }; done; exit 1'
         }
         OLLAMA_PORT="$(get_random_port)" || {
             echo "Failed to get random port. Exiting." >&2
@@ -91,22 +83,28 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
         }
     fi
     export OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1${OLLAMA_PORT:+:${OLLAMA_PORT}}}"
-    ollama serve || {
-        echo "Failed to start ollama. Exiting." >&2
-        exit 1
-    }
+
+    # Start the Ollama server.
+    ollama serve || { echo "Failed to start ollama. Exiting." >&2; exit 1; }
     OLLAMA_PID=$!
     trap 'kill -TERM $OLLAMA_PID' TERM INT
+    wait
+
+%runscript
+    # For 'apptainer run instance://...' commands, simply forward the given command.
+    exec "$@"
 
 %help
-    This container for running Ollama supports a custom scratch directory.
-    At build time, you can set a default scratch path via the SCRATCH_BASE build argument.
-    For example:
-      apptainer build --build-arg SCRATCH_BASE=/scratch/groups/fmcnich/nrapstin ollama.sif definition_file.def
+    This container runs Ollama with a configurable scratch directory.
+    
+    At build time, set a default SCRATCH_BASE via:
+      apptainer build --build-arg SCRATCH_BASE=/scratch/groups/fmcnich/nrapstin ollama.sif ollama.def
 
-    At runtime you may override this default.
-    For example:
-      SCRATCH_BASE=/scratch/m000106/nrapstin apptainer instance start --nv --writable-tmpfs --bind /scratch/m000106/nrapstin ollama.sif <instance-name>
+    At runtime you may override the default. For example, on Yens HPC:
+      SCRATCH_BASE=/scratch/shared/nrapstin apptainer instance start --nv --writable-tmpfs --bind /scratch/shared/nrapstin ollama.sif ollama-nrapstin
 
-    For more information, visit https://ollama.ai.
+    Then, run commands inside the instance with:
+      apptainer run instance://ollama-nrapstin ollama pull deepseek-r1:70b
+
+    In this configuration, HOME is forcefully overridden to ${SCRATCH_BASE}/home so that all writes occur within your writable scratch directory.
 
