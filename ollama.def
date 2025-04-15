@@ -37,62 +37,90 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
     ollama --help
 
 %startscript
-    # This section is executed when an instance starts.
-    set -o errexit -o noglob
+#!/bin/bash
+# This section runs when an instance starts.
+set -o errexit -o noglob
 
-    # Use the runtime override if provided; otherwise fall back to the build-time default.
-    SCRATCH_BASE="${SCRATCH_BASE:-$DEFAULT_SCRATCH_BASE}"
-    if [ -z "${SCRATCH_BASE}" ] || [ "${SCRATCH_BASE}" = "<your-scratch-dir-here>" ]; then
-        echo "Error: SCRATCH_BASE is not set. Provide a valid scratch directory via a build argument or runtime override." >&2
+# Use the runtime override if provided; otherwise, fall back to the build-time default.
+SCRATCH_BASE="${SCRATCH_BASE:-$DEFAULT_SCRATCH_BASE}"
+if [ -z "${SCRATCH_BASE}" ] || [ "${SCRATCH_BASE}" = "<your-scratch-dir-here>" ]; then
+    echo "Error: SCRATCH_BASE is not set. Provide a valid scratch directory via a build argument or runtime override." >&2
+    exit 1
+fi
+
+# Ensure SCRATCH_BASE exists.
+if ! mkdir -p "${SCRATCH_BASE}"; then
+    echo "Failed to create scratch base directory ${SCRATCH_BASE}. Exiting." >&2
+    exit 1
+fi
+
+# Setup directory for Ollama models under SCRATCH_BASE.
+if findmnt -M "${SCRATCH_BASE}" -O rw -f 2>/dev/null; then
+    OLLAMA_MODELS="${OLLAMA_MODELS:-${SCRATCH_BASE}/ollama/models}"
+else
+    OLLAMA_MODELS="${OLLAMA_MODELS:-/tmp/ollama/models}"
+fi
+if ! mkdir -p "${OLLAMA_MODELS}"; then
+    echo "Failed to create directory \"${OLLAMA_MODELS}\". Exiting." >&2
+    exit 1
+fi
+export OLLAMA_MODELS
+
+# Unconditionally override HOME to a writable directory under SCRATCH_BASE.
+NEW_HOME="${SCRATCH_BASE}/home"
+echo "Overriding HOME to ${NEW_HOME} for writable storage."
+mkdir -p "${NEW_HOME}" || { echo "Failed to create writable home at ${NEW_HOME}. Exiting." >&2; exit 1; }
+export HOME="${NEW_HOME}"
+
+# Random port generator using a hardcoded ephemeral range.
+get_random_port() {
+    LOWERPORT=32768
+    UPPERPORT=60999
+    PORTRANGE=$(( UPPERPORT - LOWERPORT ))
+    while :; do
+        PORT=$(( LOWERPORT + ( RANDOM % PORTRANGE ) ))
+        # Use Bash's /dev/tcp to test if the port is free.
+        if bash -c "echo -n > /dev/tcp/127.0.0/${PORT}" 2>/dev/null; then
+            continue  # Port is in use; try again.
+        else
+            echo "${PORT}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Set up OLLAMA_PORT if not provided.
+if [ -z "${OLLAMA_PORT:-}" ]; then
+    echo "OLLAMA_PORT not set. Finding a random port to use" >&2
+    OLLAMA_PORT="$(get_random_port)" || {
+        echo "Failed to get random port. Exiting." >&2
         exit 1
-    fi
+    }
+fi
 
-    # Ensure that SCRATCH_BASE exists.
-    if ! mkdir -p "${SCRATCH_BASE}"; then
-        echo "Failed to create scratch base directory ${SCRATCH_BASE}. Exiting." >&2
-        exit 1
-    fi
+# Determine the node's IP address.
+HOST_IP=$(hostname -i | awk '{print $1}')
+# Advertise the actual reachable endpoint.
+export OLLAMA_HOST="${HOST_IP}:${OLLAMA_PORT}"
+echo "Ollama is binding on ${OLLAMA_HOST}"
 
-    # Use SCRATCH_BASE as the basis for Ollama models.
-    if findmnt -M "${SCRATCH_BASE}" -O rw -f 2>/dev/null; then
-        OLLAMA_MODELS="${OLLAMA_MODELS:-${SCRATCH_BASE}/ollama/models}"
-    else
-        OLLAMA_MODELS="${OLLAMA_MODELS:-/tmp/ollama/models}"
-    fi
-    if ! mkdir -p "${OLLAMA_MODELS}"; then
-        echo "Failed to create directory \"${OLLAMA_MODELS}\". Exiting." >&2
-        exit 1
-    fi
-    export OLLAMA_MODELS
+# Write the endpoint into a file for subsequent client commands.
+echo "export OLLAMA_HOST=${HOST_IP}:${OLLAMA_PORT}" > /tmp/ollama_env.sh
 
-    # Unconditionally override HOME to a writable directory under SCRATCH_BASE.
-    NEW_HOME="${SCRATCH_BASE}/home"
-    echo "Overriding HOME to ${NEW_HOME} for writable storage."
-    mkdir -p "${NEW_HOME}" || { echo "Failed to create writable home at ${NEW_HOME}. Exiting." >&2; exit 1; }
-    export HOME="${NEW_HOME}"
-
-    # Set up OLLAMA_PORT if not provided.
-    if [ -z "${OLLAMA_PORT:-}" ]; then
-        echo "OLLAMA_PORT not set. Finding a random port to use" >&2
-        get_random_port() {
-            bash -c 'set -e; read LOWERPORT UPPERPORT < /proc/sys/net/ipv4/ip_local_port_range; PORTRANGE=$(( UPPERPORT - LOWERPORT )); while :; do PORT=$(( LOWERPORT + ( RANDOM % PORTRANGE) )); (echo -n > /dev/tcp/127.0.0/${PORT}) &>/dev/null || { echo "${PORT}"; exit 0; }; done; exit 1'
-        }
-        OLLAMA_PORT="$(get_random_port)" || {
-            echo "Failed to get random port. Exiting." >&2
-            exit 1
-        }
-    fi
-    export OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1${OLLAMA_PORT:+:${OLLAMA_PORT}}}"
-
-    # Start the Ollama server.
-    ollama serve || { echo "Failed to start ollama. Exiting." >&2; exit 1; }
-    OLLAMA_PID=$!
-    trap 'kill -TERM $OLLAMA_PID' TERM INT
-    wait
+# Start the Ollama server.
+ollama serve || { echo "Failed to start ollama. Exiting." >&2; exit 1; }
+OLLAMA_PID=$!
+trap 'kill -TERM $OLLAMA_PID' TERM INT
+wait
 
 %runscript
-    # For 'apptainer run instance://...' commands, simply forward the given command.
-    exec "$@"
+#!/bin/bash
+# Source the endpoint information so that client commands pick it up.
+if [ -f /tmp/ollama_env.sh ]; then
+    source /tmp/ollama_env.sh
+fi
+exec "$@"
 
 %help
     This container runs Ollama with a configurable scratch directory.
@@ -100,11 +128,12 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
     At build time, set a default SCRATCH_BASE via:
       apptainer build --build-arg SCRATCH_BASE=/scratch/groups/fmcnich/nrapstin ollama.sif ollama.def
 
-    At runtime you may override the default. For example, on Yens HPC:
+    At runtime you may override the default. For example, on another HPC system:
       SCRATCH_BASE=/scratch/shared/nrapstin apptainer instance start --nv --writable-tmpfs --bind /scratch/shared/nrapstin ollama.sif ollama-nrapstin
 
     Then, run commands inside the instance with:
       apptainer run instance://ollama-nrapstin ollama pull deepseek-r1:70b
 
-    In this configuration, HOME is forcefully overridden to ${SCRATCH_BASE}/home so that all writes occur within your writable scratch directory.
+    In this configuration, HOME is overridden to ${SCRATCH_BASE}/home so that all writes occur within your writable scratch directory.
+    The service advertises its actual IP and port (set in OLLAMA_HOST) via a file (/tmp/ollama_env.sh) so that client commands can connect to the server.
 
