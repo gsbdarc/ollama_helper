@@ -1,9 +1,16 @@
 # Running Ollama on Stanford computing clusters
+
+## Quickstart 
+If you just want to get Ollama running...
+
+
+
+## Building Customized Container
 We will use a container similar to this [guide](https://github.com/uw-psych/ollama-container/tree/main).
 
-We will build Ollama container once using Sherlock GPU node but this can also be done locally with Docker.
+We will build Ollama container once using Sherlock GPU node.
 
-## Build Ollama on Sherlock
+### Build Ollama on Sherlock
 
 Request a big GPU:
 ```
@@ -138,7 +145,7 @@ scp ollama.sif $USER@login.marlowe.stanford.edu:<your-project-space-on-Marlowe>
 scp ollama.sif $USER@yen.stanford.edu:<your-project-space-on-yens>
 ```
 
-## Run Ollama on Marlowe
+### Run Ollama on Marlowe
 
 Check out a GPU node:
 
@@ -183,7 +190,7 @@ apptainer instance stop ollama-$USER
 ```
 
 
-## Ollama on the Yens
+### Ollama on the Yens
 
 Request an allocation on a bigger GPU node:
 ```
@@ -229,3 +236,13 @@ To stop the server:
 ```
 apptainer instance stop ollama-$USER
 ```
+
+
+### Running with Slurm
+Example of how to run a slurm script that uses Ollama.
+
+### Jupyter
+Example of how to run a Jupyter notebook that uses Ollama that is running on the GPU node.
+
+### Ollama Across Nodes
+Running Ollama across multiple GPU nodes.
