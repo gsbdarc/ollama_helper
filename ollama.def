@@ -4,11 +4,16 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
 %arguments
     OLLAMA_TAG=latest
     OLLAMA_LIBRARY_URL=https://ollama.com/library
-    # Set your scratch base directory here. Users can change this to match their system.
+    # Set your scratch base default here.
+    # This default will be used if no runtime override is provided.
     SCRATCH_BASE=<your-scratch-dir-here>
 
+%environment
+    # Save the build-time default into a variable.
+    export DEFAULT_SCRATCH_BASE="{{ SCRATCH_BASE }}"
+
 %setup
-    # Run write-apptainer-labels.sh only if it exists
+    # Run write-apptainer-labels.sh only if it exists.
     if [ -f ./.build-scripts/write-apptainer-labels.sh ]; then
         [ -n "${APPTAINER_ROOTFS:-}" ] && ./.build-scripts/write-apptainer-labels.sh >"${APPTAINER_ROOTFS}/.build_labels"
     else
@@ -16,6 +21,8 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
     fi
 
 %post
+    # Dummy usage of SCRATCH_BASE via template substitution to use the build arg.
+    echo "Build arg SCRATCH_BASE is set to {{ SCRATCH_BASE }}"
     if ! [ -f /etc/debian_version ]; then
         echo "This container is only fully supported on Debian-based systems. Some commands may not work." >&2
     else
@@ -30,34 +37,18 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
     ollama --help
 
 %runscript
-    set -o noglob -o errexit
-    if [ $# -eq 0 ] || [ -z "${1:-}" ]; then
-        echo "Usage: $0 ollama [args]" >&2
-        exit 1
-    fi
-    OLLAMA_LIBRARY_URL="${OLLAMA_LIBRARY_URL:-{{ OLLAMA_LIBRARY_URL }}}"
-    case "${1:-}" in
-        available-models)
-            shift
-            command -v curl >/dev/null || { echo "curl not found. Exiting." >&2; exit 1; }
-            curl -sL "${OLLAMA_LIBRARY_URL}" | grep -oP 'href="/library/\K[^"]+' || { echo "No models found at ${OLLAMA_LIBRARY_URL}" >&2; exit 2; }
-            exit 0
-            ;;
-        available-tags)
-            shift
-            command -v curl >/dev/null || { echo "curl not found. Exiting." >&2; exit 1; }
-            curl -sL "${OLLAMA_LIBRARY_URL}/$1/tags" | grep -o "$1:[^\" ]*q[^\" ]*" | grep -E -v 'text|base|fp|q[45]_[01]' || { echo "No model tags found at ${OLLAMA_LIBRARY_URL}/$1/tags" >&2; exit 2; }
-            exit 0
-            ;;
-        *)     ;;
-    esac
-    # Run the ollama command with the remaining arguments:
-    "$@"
-
-%startscript
     set -o errexit -o noglob
 
-    # Ensure the base scratch directory exists (create if necessary)
+    # Allow a runtime override. If SCRATCH_BASE is not provided at runtime, use the default.
+    SCRATCH_BASE="${SCRATCH_BASE:-$DEFAULT_SCRATCH_BASE}"
+
+    # Validate that a proper scratch base has been supplied.
+    if [ -z "${SCRATCH_BASE}" ] || [ "${SCRATCH_BASE}" = "<your-scratch-dir-here>" ]; then
+        echo "Error: SCRATCH_BASE is not set. Please supply a valid scratch directory path either via a build argument or by setting SCRATCH_BASE at runtime." >&2
+        exit 1
+    fi
+
+    # Ensure the base scratch directory exists (create it if necessary).
     if ! mkdir -p "${SCRATCH_BASE}"; then
         echo "Failed to create scratch base directory ${SCRATCH_BASE}. Exiting." >&2
         exit 1
@@ -88,7 +79,7 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
     fi
     export OLLAMA_MODELS
 
-    # Set up OLLAMA_HOST
+    # Set up OLLAMA_HOST. If OLLAMA_PORT is not provided, pick a random open port.
     if [ -z "${OLLAMA_PORT:-}" ]; then
         echo "OLLAMA_PORT not set. Finding a random port to use" >&2
         get_random_port() {
@@ -108,5 +99,14 @@ From: ollama/ollama:{{ OLLAMA_TAG }}
     trap 'kill -TERM $OLLAMA_PID' TERM INT
 
 %help
-    This is a simple container for running Ollama. For more information, visit https://ollama.ai.
+    This container for running Ollama supports a custom scratch directory.
+    At build time, you can set a default scratch path via the SCRATCH_BASE build argument.
+    For example:
+      apptainer build --build-arg SCRATCH_BASE=/scratch/groups/fmcnich/nrapstin ollama.sif definition_file.def
+
+    At runtime you may override this default.
+    For example:
+      SCRATCH_BASE=/scratch/m000106/nrapstin apptainer instance start --nv --writable-tmpfs --bind /scratch/m000106/nrapstin ollama.sif <instance-name>
+
+    For more information, visit https://ollama.ai.
 
