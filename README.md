@@ -18,14 +18,16 @@ git clone https://github.com/gsbdarc/ollama.git
 cd ollama
 export OLLAMA_MODELS=/scratch/<your-scratch-space>/ollama_data/models
 mkdir -p "${OLLAMA_MODELS}"
-apptainer build --build-arg SCRATCH_BASE=/scratch/<your-scratch-space> ollama.sif ollama.def
+export SCRATCH_BASE=/scratch/<your-scratch-space>
+export APPTAINER_CACHEDIR==/scratch/<your-scratch-space>/.apptainer_cache
+apptainer build --build-arg SCRATCH_BASE=$SCRATCH_BASE ollama.sif ollama.def
 ```
 
 where `<your-scratch-space>` is your GROUP scratch directory / SUNet. 
 
 To launch the server, run:
 ```
-SCRATCH_BASE=/scratch/<your-scratch-space> apptainer instance start --nv --writable-tmpfs --bind /scratch/<your-scratch-space> ollama.sif ollama-$USER
+SCRATCH_BASE=$SCRATCH_BASE apptainer instance start --nv --writable-tmpfs --bind $SCRATCH_BASE ollama.sif ollama-$USER
 ```
 where `$USER` is your SUNet.
 
@@ -34,6 +36,14 @@ If the `ollama` server has started correctly, you should see something like:
 ```
 level=INFO source=routes.go:1298 msg="Listening on 10.20.1.7:36125 (version 0.6.5)"
 ```
+
+Note that the node and port will be different for your run.
+
+See what port was assigned to the server:
+```
+cat $SCRATCH_BASE/instance_start.log
+```
+
 From a login node, try:
 
 ```
@@ -49,7 +59,7 @@ Ollama is running
 
 To pull a model in this case, DeepSeek-r1 70b, run:
 ```
-SCRATCH_BASE=/scratch/<your-scratch-space> apptainer run instance://ollama-$USER ollama pull deepseek-r1:70b
+SCRATCH_BASE=$SCRATCH_BASE apptainer run instance://ollama-$USER ollama pull deepseek-r1:70b
 ```
 
 Now we can connect to the `ollama` server from other nodes. 
@@ -122,7 +132,7 @@ apptainer instance stop ollama-$USER
 ```
 
 
-## Transfer Built Container to Marlowe and Yens
+### Transfer Built Container to Marlowe and Yens
 ```
 scp ollama.sif nrapstin@login.marlowe.stanford.edu:/projects/m000106/nrapstin/llm-hub_how_to
 scp ollama.sif nrapstin@yen.stanford.edu:/zfs/projects/darc/nrapstin_ollama
@@ -142,12 +152,31 @@ After allocation:
 ```
 cd <your-project-space>
 export APPTAINER_CACHEDIR=/scratch/<your-project>/<$USER>/.apptainer_cache
-
 export OLLAMA_MODELS=/scratch/<your-project>/<$USER>/ollama_data/models
 mkdir -p "${OLLAMA_MODELS}"
-SCRATCH_BASE=/scratch/<your-project>/<$USER> apptainer instance start --nv --writable-tmpfs --bind /scratch/<your-project>/<$USER> ollama.sif ollama-$USER
-SCRATCH_BASE=/scratch/<your-project>/<$USER> apptainer run instance://ollama-$USER ollama pull deepseek-r1:70b
+export SCRATCH_BASE=/scratch/<your-project>/<$USER>
+SCRATCH_BASE=$SCRATCH_BASE apptainer instance start --nv --writable-tmpfs --bind $SCRATCH_BASE ollama.sif ollama-$USER
+SCRATCH_BASE=$SCRATCH_BASE apptainer run instance://ollama-$USER ollama pull deepseek-r1:70b
 ```
+
+To see what port the server is running on :
+```
+cat $SCRATCH_BASE/instance_start.log
+```
+
+Test from a login node:
+
+```
+curl http://<hostname>:<port>
+```
+where `hostname` is the GPU node that is running the server.
+
+Run the script from the login node:
+```
+python3 test.py <hostname> --port <port>
+```
+where `hostname` is the GPU node that is running the server.
+
 
 To stop:
 ```
@@ -156,6 +185,8 @@ apptainer instance stop ollama-$USER
 
 
 ## Ollama on the Yens
+
+Request an allocation on a bigger GPU node:
 ```
 srun -p gpu -G 1  -C "GPU_MODEL:A40" --ntasks=1 --time=12:00:00 --pty /bin/bash
 ```
@@ -169,57 +200,33 @@ ml apptainer
 export APPTAINER_CACHEDIR=/scratch/shared/<$USER>/.apptainer_cache
 export OLLAMA_MODELS=/scratch/shared/<$USER>/ollama_data/models
 mkdir -p "${OLLAMA_MODELS}"
-SCRATCH_BASE=/scratch/shared/<$USER> apptainer instance start --nv --writable-tmpfs --bind /scratch/shared/<$USER> ollama.sif ollama-$USER
-SCRATCH_BASE=/scratch/shared/<$USER> apptainer run instance://ollama-$USER ollama pull deepseek-r1:70b
+export SCRATCH_BASE=/scratch/shared/<$USER>
+SCRATCH_BASE=$SCRATCH_BASE apptainer instance start --nv --writable-tmpfs --bind $SCRATCH_BASE ollama.sif ollama-$USER
+SCRATCH_BASE=$SCRATCH_BASE apptainer run instance://ollama-$USER ollama pull deepseek-r1:70b
 ```
 
 Test from an interactive Yen:
 ```
-curl http://<hostname>:11434
+curl http://<hostname>:<port>
 ```
+
+where `hostname` is the GPU node that is running the server and `<port>` is the port where server is listening.
+
 You should see:
 
 ```
 Ollama is running
 ```
 
-Run a test Python script that looks like so:
-```py title="test.py"
-import argparse
-import requests
+Run a test Python script: 
 
-# Set up argument parsing
-parser = argparse.ArgumentParser(description="Send a request to an Ollama API endpoint on a given node hostname.")
-parser.add_argument("hostname", type=str, help="The hostname of the node (e.g., sh04-01n07)")
-args = parser.parse_args()
-
-# Construct the URL using the provided hostname
-url = f"http://{args.hostname}:11434/api/generate"
-
-payload = {
-    "model": "deepseek-r1:70b",
-    "prompt": "With the upcoming 100-year celebration this fall, how do you envision Stanford GSB using this milestone to inspire the next generation of business leaders? Identify two specific initiatives or themes that should be highlighted during the celebration, and discuss how these can both honor the school’s century-long legacy and shape innovative approaches to business education going forward. Provide examples to support your recommendations.",
-    "stream": False  # Disable streaming to get one complete response
-}
-headers = {"Content-Type": "application/json"}
-
-# Make the POST request
-response = requests.post(url, json=payload, headers=headers)
-
-# Assuming the API returns a JSON response, print the result.
-data = response.json()
-print(data)
 ```
-The script accepts a hostname as an argument where the Ollama server is running.
-
-
-Run the script from the login node:
+python3 test.py <hostname> --port <port>
 ```
-python3 test.py <hostname>
-```
-where `hostname` is the GPU node that is running the server.
+The script accepts a hostname and a port as an argument where the Ollama server is running.
 
-To stop:
+
+To stop the server:
 ```
 apptainer instance stop ollama-$USER
 ```
