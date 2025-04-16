@@ -37,17 +37,33 @@ Define a helper function:
 
 ```
 ollama() {
+  LOWERPORT=32768
+  UPPERPORT=60999
+
+  find_available_port() {
+    while true; do
+      local port=$(shuf -i ${LOWERPORT}-${UPPERPORT} -n 1)
+      if ! ss -tuln | grep -q ":${port} "; then
+        echo "$port"
+        return
+      fi
+    done
+  }
+
+  OLLAMA_PORT=$(find_available_port)
+  echo "Starting Ollama server on port: ${OLLAMA_PORT}"
+
   apptainer run \
     --nv \
     --writable-tmpfs \
     --no-home \
-    --bind "$APPTAINER_BIND" \
-    --env  OLLAMA_MODELS=/root/ollama/models \
-    --env  OLLAMA_HOST=http://0.0.0.0:11434 \
-    --env  OLLAMA_PORT=11434 \
+    --env OLLAMA_MODELS=/root/ollama/models \
+    --env OLLAMA_HOST="http://0.0.0.0:${OLLAMA_PORT}" \
+    --env OLLAMA_PORT="${OLLAMA_PORT}" \
     ollama.sif \
     "$@"
 }
+
 ```
 
 Start Ollama server:
