@@ -83,12 +83,12 @@ Ollama is running
 
 Run a test python script from an interactive yen:
 ```
-python3 ../test.py <hostname> --port <port>
+python3 test.py <hostname> --port <port>
 ```
 
 For example, if the server is running on `yen-gpu3`:
 ```
-python3 ../test.py yen-gpu3 --port 11434
+python3 test.py yen-gpu3 --port 11434
 ```
 
 
