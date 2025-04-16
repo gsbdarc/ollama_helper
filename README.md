@@ -263,6 +263,6 @@ python3 test.py <hostname> --port <port>
 
 For example, if the server is running on `n09` and port 11434, run:
 ```
-python3 test.py n05 --port 11434
+python3 test.py n09 --port 11434
 ```
 
