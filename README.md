@@ -35,7 +35,7 @@ export APPTAINER_CACHEDIR=$SCRATCH_BASE/.apptainer_cache
 mkdir -p $SCRATCH_BASE/ollama/models
 export APPTAINER_BIND="$SCRATCH_BASE/ollama:/root/ollama"
 ```
-⚠️i This uses `/scratch` and avoids storing models in your $HOME. 
+⚠️ This uses `/scratch` and avoids storing models in your `$HOME`. 
 
 #### Step 4: Pull Ollama Container Image
 Download the official Ollama image from DockerHub:
