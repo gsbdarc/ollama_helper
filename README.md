@@ -110,7 +110,7 @@ cd ollama
 Set environment variables:
 
 ```
-export SCRATCH_BASE=/scratch/shared/$USER
+export SCRATCH_BASE=/<group-scratch>/$USER
 export APPTAINER_CACHEDIR=$SCRATCH_BASE/.apptainer_cache
 mkdir -p $SCRATCH_BASE/ollama/models
 export APPTAINER_BIND="$SCRATCH_BASE/ollama:/root/ollama"
