@@ -14,13 +14,17 @@ On the GPU node:
 
 ```
 cd /zfs/<your-project-space>/
-ml apptainer
+git clone https://github.com/gsbdarc/ollama.git
+cd ollama
+```
 
+Load `apptainer` module and set environment variables:
+
+```
+ml apptainer
 export SCRATCH_BASE=/scratch/shared/$USER
 export APPTAINER_CACHEDIR=$SCRATCH_BASE/.apptainer_cache
-
 mkdir -p $SCRATCH_BASE/ollama/models
-
 export APPTAINER_BIND="$SCRATCH_BASE/ollama:/root/ollama"
 ```
 
@@ -99,11 +103,16 @@ On the GPU node:
 
 ```
 cd /zfs/<your-project-space>/
+git clone https://github.com/gsbdarc/ollama.git
+cd ollama
+```
+
+Set environment variables:
+
+```
 export SCRATCH_BASE=/scratch/shared/$USER
 export APPTAINER_CACHEDIR=$SCRATCH_BASE/.apptainer_cache
-
 mkdir -p $SCRATCH_BASE/ollama/models
-
 export APPTAINER_BIND="$SCRATCH_BASE/ollama:/root/ollama"
 ```
 
@@ -162,30 +171,35 @@ Ollama is running
 
 Run a test python script from an interactive yen:
 ```
-python3 ../test.py <hostname> --port <port>
+python3 test.py <hostname> --port <port>
 ```
 
 For example, if the server is running on `sh04-01n05`:
 ```
-python3 ../test.py sh04-01n05 --port 11434
+python3 test.py sh04-01n05 --port 11434
 ```
 
 ### Ollama on Marlowe
 
 Request a GPU node:
 ```
-srun -p preempt -A marlowe-m000106 --gres=gpu:1 --ntasks=1 --time=4:00:00 --pty /bin/bash
+srun -p preempt -A marlowe-<your-project> --gres=gpu:1 --ntasks=1 --time=4:00:00 --pty /bin/bash
 ```
 
 On the GPU node:
 
 ```
 cd /zfs/<your-project-space>/
+git clone https://github.com/gsbdarc/ollama.git
+cd ollama
+```
+
+Set environment variables:
+
+```
 export SCRATCH_BASE=/scratch/<your-project>/$USER
 export APPTAINER_CACHEDIR=$SCRATCH_BASE/.apptainer_cache
-
 mkdir -p $SCRATCH_BASE/ollama/models
-
 export APPTAINER_BIND="$SCRATCH_BASE/ollama:/root/ollama"
 ```
 
@@ -244,12 +258,12 @@ Ollama is running
 
 Run a test python script from an interactive yen:
 ```
-python3 ../test.py <hostname> --port <port>
+python3 test.py <hostname> --port <port>
 ```
 
 For example, if the server is running on `n09` and port 11434, run:
 ```
-python3 ../test.py n05 --port 11434
+python3 test.py n05 --port 11434
 ```
 
 
