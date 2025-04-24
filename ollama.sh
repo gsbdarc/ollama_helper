@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-#
-# ~/scripts/ollama.sh
 # Defines a single `ollama()` wrapper for running Ollama on HPC with scratch‑backed state.
 
 ollama() {
@@ -9,7 +7,7 @@ ollama() {
 
   # 1) Require SCRATCH_BASE
   if [ -z "$SCRATCH_BASE" ]; then
-    echo "ERROR: please export SCRATCH_BASE (e.g. /scratch/<proj>/$USER)" >&2
+    echo "ERROR: please export SCRATCH_BASE" >&2
     return 1
   fi
 
@@ -36,7 +34,7 @@ ollama() {
     PORT=$(find_available_port)
     echo "$PORT" > "$PORT_FILE"
 
-    # record the short hostname (e.g. "yen-gpu1")
+    # record the short hostname 
     hostname -s > "$HOST_FILE"
 
     # bind on all interfaces
@@ -76,6 +74,6 @@ ollama() {
     ollama.sif "$@"
 }
 
-# Export so that subshells (e.g. sbatch scripts) will inherit it
+# Export so that subshells (e.g. slurm scripts) will inherit it
 export -f ollama
 
