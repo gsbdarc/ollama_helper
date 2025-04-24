@@ -6,17 +6,17 @@ def main():
     parser = argparse.ArgumentParser(
         description="Send a request to an Ollama API endpoint on a given node hostname and port."
     )
-    parser.add_argument("hostname", type=str, help="The hostname of the node (e.g., sh04-01n07)")
+    parser.add_argument("--host", type=str, help="The hostname of the server's GPU node)")
     parser.add_argument("--port", type=str, default="11434", help="The port number for the API (default: 11434)")
     
     args = parser.parse_args()
     
     # Construct the URL using the provided hostname and port.
-    url = f"http://{args.hostname}:{args.port}/api/generate"
+    url = f"http://{args.host}:{args.port}/api/generate"
     print(f"Sending request to URL: {url}")
     
     payload = {
-        "model": "deepseek-r1:70b",
+        "model": "deepseek-r1:7b",
         "prompt": (
             "With the upcoming 100-year celebration this fall, how do you envision Stanford GSB using "
             "this milestone to inspire the next generation of business leaders? Identify two specific "
