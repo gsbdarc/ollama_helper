@@ -17,9 +17,9 @@ Follow the steps below to get up and running.
 - Access to Stanford HPC clusters (Yen, Sherlock, or Marlowe)  
 
 ## Installation
+Clone this code repo:
 
-```bash title="Clone This Code Repo"
-# 1. Clone this repo into your project space
+```bash
 cd </your/project/path>
 git clone https://github.com/gsbdarc/ollama.git
 cd ollama
