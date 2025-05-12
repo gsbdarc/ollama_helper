@@ -22,6 +22,6 @@ Clone this code repo:
 
 ```bash
 cd </your/project/path>
-git clone https://github.com/gsbdarc/ollama.git
+git clone https://github.com/gsbdarc/ollama_helper.git
 cd ollama
 ```
