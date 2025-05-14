@@ -31,3 +31,17 @@ cd </your/project/path>
 git clone https://github.com/gsbdarc/ollama_helper.git
 cd ollama_helper
 ```
+
+## Getting the Notebook running on the yens
+
+```bash
+/usr/bin/python3  -m venv my_env
+
+source my_env/bin/activate
+
+pip install -r requirements.txt
+
+python -m ipykernel install --user --name=<kernel-name>
+
+```
+
