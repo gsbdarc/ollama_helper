@@ -2,7 +2,10 @@
 
 A hands-on guide and accompanying scripts for running Ollama (local LLM inference) on Stanford’s Yen, Sherlock, and Marlowe clusters.
 
-Based on the blog post “[Running Ollama on Stanford Computing Clusters](https://rcpedia.stanford.edu/blog/2025/05/12/running-ollama-on-stanford-computing-clusters/)” by the GSB DARC Team. 
+ 
+
+Based on the blog post “[Running Ollama on Stanford Computing Clusters](https://rcpedia.stanford.edu/blog/2025/05/12/running-ollama-on-stanford-computing-clusters)” by the GSB DARC Team. 
+
 
 ## Overview
 
