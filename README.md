@@ -14,7 +14,8 @@ This repository contains:
 - **`ollama.sh`**: helper function to launch and manage the Ollama server.  
 - **`test.py`**: example Python script to verify your Ollama server.
 - **`tutorial.ipynb`**: example notebook of various commands on the Ollama Server
-- **`Requirements.txt`**: Libraries needed to fun the full tutorial. To set up venv in jupyterNotebooks check out our [website](https://rcpedia.stanford.edu/_user_guide/python_envs/?h=virtu#running-python-scripts-using-virtual-environment)
+- **`requirements.txt`**: libraries needed to run the full tutorial. To set up a virtual environment in Jupyter Notebooks, please see the [Python environments guide](https://rcpedia.stanford.edu/_user_guide/python_envs/?h=virtu#running-python-scripts-using-virtual-environment)
+- **`joke_example.png`**: AI generated joke image to go with tutorial
 
 Follow the steps below to get up and running.
 
