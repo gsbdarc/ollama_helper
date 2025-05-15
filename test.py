@@ -34,7 +34,7 @@ def main():
         response.raise_for_status()
         # Assuming the API returns a JSON response, print the result.
         data = response.json()
-        print(data)
+        print(data['response'])
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
 
