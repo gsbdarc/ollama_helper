@@ -47,6 +47,9 @@ ollama() {
     # drop the "serve" arg so it isn't passed twice
     shift
 
+    # Fix: unset ROCm device variable to avoid CPU fallback on NVIDIA
+    unset ROCR_VISIBLE_DEVICES
+
     exec apptainer run \
       --nv \
       --contain \
